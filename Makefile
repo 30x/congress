@@ -1,6 +1,7 @@
 IMAGE_VERSION=0.1.0
 
 build-and-package: compile-linux build-image
+build-deploy-dev: compile-linux build-image push-to-dev deploy-dev-image
 
 compile-linux:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w' -o congress
@@ -8,6 +9,13 @@ compile-linux:
 build-image:
 	docker build -t thirtyx/congress .
 
-push-to-hub:
+push-to-dev:
+	docker tag -f thirtyx/congress thirtyx/congress:dev
+	docker push thirtyx/congress:dev
+
+push-new-version:
 	docker tag -f thirtyx/congress thirtyx/congress:$(IMAGE_VERSION)
 	docker push thirtyx/congress:$(IMAGE_VERSION)
+
+deploy-dev-image:
+	kubectl run congress --image=thirtyx/congress:dev --namespace=apigee
