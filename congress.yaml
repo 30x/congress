@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: congress
+  namespace: apigee
+  labels:
+    name: congress
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: congress
+    spec:
+      containers:
+      - image: thirtyx/congress:0.1.0
+        imagePullPolicy: Always
+        name: congress
