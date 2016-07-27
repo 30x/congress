@@ -1,0 +1,7 @@
+package: github.com/30x/congress
+import:
+- package: k8s.io/kubernetes
+  version: ~1.3.x
+- package: speter.net/go/exp/math/dec/inf
+  vcs: git
+  repo: https://github.com/go-inf/inf
