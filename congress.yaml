@@ -13,6 +13,6 @@ spec:
         name: congress
     spec:
       containers:
-      - image: thirtyx/congress:0.1.0
+      - image: thirtyx/congress:0.1.1
         imagePullPolicy: Always
         name: congress
