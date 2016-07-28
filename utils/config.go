@@ -27,12 +27,15 @@ const (
   DefaultNamespaceExclude = "kube-system"
   // DefaultLabelSelector is the default label selector to use as a namespace watch filter
   DefaultLabelSelector = ""
+  // DefaultIgnoreSelector is the default label selector to use to identify namespaces to be ignored
+  DefaultIgnoreSelector = ""
 )
 
 // Config contains the configurable variables used by the congress policy maker and watcher
 type Config struct {
   Excludes []string
   LabelSelector labels.Selector
+  IgnoreSelector labels.Selector
 }
 
 // ConfigFromEnv returns the configuration based on the environment variables
@@ -50,6 +53,18 @@ func ConfigFromEnv() (*Config, error) {
   }
 
   config.LabelSelector = selector
+
+  ignore := os.Getenv("CONGRESS_IGNORE_SELECTOR")
+  if label == "" {
+    label = DefaultLabelSelector
+  }
+
+  ignoreSelector, err := labels.Parse(ignore)
+  if err != nil {
+    return nil, fmt.Errorf("Failed to created label selector: %v", err)
+  }
+
+  config.IgnoreSelector = ignoreSelector
 
   excludesRaw := os.Getenv("CONGRESS_EXCLUDES")
   if excludesRaw == "" {
@@ -70,4 +85,14 @@ func (c *Config) IsExcluded(target string) bool {
 
   // not excluded, write policies for it
   return false
+}
+
+// InIgnoreSelector checks to see if the given labels contain an ignored label.
+func (c *Config) InIgnoreSelector(set map[string]string) bool {
+  if set == nil {
+    return false // not in the ignore selector
+  }
+
+  labelSet := labels.Set(set)
+  return c.IgnoreSelector.Matches(labelSet)
 }

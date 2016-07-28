@@ -63,7 +63,7 @@ func main() {
     // new namespace created event, start isolating it
     if event.Type == watch.Added && !doRestart {
       namespace := event.Object.(*api.Namespace)
-      if !config.IsExcluded(namespace.Name) {
+      if !config.IsExcluded(namespace.Name) && !config.InIgnoreSelector(namespace.GetLabels()) {
         log.Printf("New namespace added: %s\n", namespace.Name)
 
         // add label for ingress policy ID
@@ -82,7 +82,8 @@ func main() {
     } else if event.Type == watch.Modified && !doRestart {
       // verify any namespace modifications didn't remove our policies
       namespace := event.Object.(*api.Namespace)
-      if namespace.Status.Phase == api.NamespaceActive && !config.IsExcluded(namespace.Name) {
+      if namespace.Status.Phase == api.NamespaceActive && !config.IsExcluded(namespace.Name) &&
+        !config.InIgnoreSelector(namespace.GetLabels()) {
         log.Printf("Modification on namespace: %s. Validating", namespace.Name)
         err = policy.ValidateNamespace(kubeClient, extClient, namespace)
         if err != nil {
@@ -122,6 +123,10 @@ func initCongress(client *unversioned.Client, extClient *unversioned.ExtensionsC
 
   if config.LabelSelector.String() != "" {
     log.Printf("Selecting namespaces on: %v", config.LabelSelector)
+  }
+
+  if config.IgnoreSelector.String() != "" {
+    log.Printf("Ignoring namespaces on: %v", config.IgnoreSelector)
   }
 
   nsWatchOpts := api.ListOptions{

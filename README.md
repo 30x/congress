@@ -29,3 +29,4 @@ There are two configurable environment variables:
 * `CONGRESS_EXCLUDES`: a comma separated list of namespaces to exclude from network isolation (default: `"kube-system"`). Example: `"kube-system,default,myImportantNamespace,anotherImportantNamspace"`
 * `CONGRESS_SELECTOR`: the label selector used by the watcher to filter `Namespace` events by (default: `""` i.e. all namespaces).
   Example: `"company=apigee,env=test"`
+* `CONGRESS_IGNORE_SELECTOR`: a label selector used to suplement the excludes list in picking namespaces to ignore (default `""` i.e. ignore none)
