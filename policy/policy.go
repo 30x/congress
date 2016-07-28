@@ -37,9 +37,8 @@ const (
   ApigeeNamespaceName = "apigee"
 )
 
-// IsolateNamespace adds the network isolation annotation to the namespace and necessary label
+// IsolateNamespace adds the necessary label for network isolation
 func IsolateNamespace(client *unversioned.Client, namespace *api.Namespace) error {
-  addIngressAnnotation(namespace)
   addNameLabel(namespace)
 
   _ , err := client.Namespaces().Update(namespace)
@@ -61,21 +60,6 @@ func addNameLabel(namespace *api.Namespace) {
   // add `name` label with this namespace's name
   labels[NameLabelKey] = namespace.Name
   namespace.SetLabels(labels)
-}
-
-func addIngressAnnotation(namespace *api.Namespace) {
-  annotations := namespace.GetAnnotations()
-  if annotations == nil { // no annotations
-    annotations = map[string]string{}
-  } else if _, exists := annotations[IngressAnnotationKey]; exists {
-    return // annotation already exists
-  }
-
-  // annotation does not exist, add it
-  annotations[IngressAnnotationKey] = IngressAnnotationValue
-  namespace.SetAnnotations(annotations)
-
-  return
 }
 
 // EnactPolicies creates the necessary network policies in the given namespace

@@ -34,7 +34,9 @@ func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsC
     }
   }
 
-  list, err := client.Namespaces().List(api.ListOptions{})
+  list, err := client.Namespaces().List(api.ListOptions{
+    LabelSelector: config.LabelSelector,
+  })
   if err != nil {
     return nil, err
   }

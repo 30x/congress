@@ -1,4 +1,4 @@
-IMAGE_VERSION=0.1.0
+IMAGE_VERSION=0.1.1
 
 build-and-package: compile-linux build-image
 build-deploy-dev: compile-linux build-image push-to-dev deploy-dev-image

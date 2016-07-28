@@ -66,10 +66,10 @@ func main() {
       if !config.IsExcluded(namespace.Name) {
         log.Printf("New namespace added: %s\n", namespace.Name)
 
-        // add ingress isolation annotation & label for policies to namespace
+        // add label for ingress policy ID
         err := policy.IsolateNamespace(kubeClient, namespace)
         if err != nil {
-          log.Printf("Failed writing ingress annotation: %v", err)
+          log.Printf("Failed writing ingress label: %v", err)
           continue
         }
 
@@ -107,7 +107,9 @@ func initCongress(client *unversioned.Client, extClient *unversioned.ExtensionsC
 
   namespaces := client.Namespaces()
 
-  existing, err := namespaces.List(api.ListOptions{})
+  existing, err := namespaces.List(api.ListOptions{
+    LabelSelector: config.LabelSelector,
+  })
   if err != nil {
     log.Printf("Could not get list of existing namespaces")
   }
@@ -116,6 +118,10 @@ func initCongress(client *unversioned.Client, extClient *unversioned.ExtensionsC
   validated, err := policy.ValidateList(client, extClient, existing, config)
   if err != nil {
     log.Fatalf("Failed validating the existing Namespaces list: %v", err)
+  }
+
+  if config.LabelSelector.String() != "" {
+    log.Printf("Selecting namespaces on: %v", config.LabelSelector)
   }
 
   nsWatchOpts := api.ListOptions{
