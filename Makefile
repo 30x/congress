@@ -18,4 +18,4 @@ push-new-version:
 	docker push thirtyx/congress:$(IMAGE_VERSION)
 
 deploy-dev-image:
-	kubectl run congress --image=thirtyx/congress:dev --namespace=apigee
+	kubectl create -f congress-dev.yaml  --namespace=apigee
