@@ -29,6 +29,8 @@ const (
   DefaultLabelSelector = ""
   // DefaultIgnoreSelector is the default label selector to use to identify namespaces to be ignored
   DefaultIgnoreSelector = ""
+  // DefaultIsolateNamespace is the default choice for locking down a namespace
+  DefaultIsolateNamespace = false
 )
 
 // Config contains the configurable variables used by the congress policy maker and watcher
@@ -36,6 +38,7 @@ type Config struct {
   Excludes []string
   LabelSelector labels.Selector
   IgnoreSelector labels.Selector
+  IsolateNamespace bool
 }
 
 // ConfigFromEnv returns the configuration based on the environment variables
@@ -72,6 +75,15 @@ func ConfigFromEnv() (*Config, error) {
   }
 
   config.Excludes = strings.Split(excludesRaw, ",")
+
+  isolate := os.Getenv("CONGRESS_ISOLATE_NAMESPACE")
+  if isolate == "true" {
+    config.IsolateNamespace = true
+  } else if isolate == "false" {
+    config.IsolateNamespace = false
+  } else {
+    config.IsolateNamespace = DefaultIsolateNamespace
+  }
 
   return config, nil
 }

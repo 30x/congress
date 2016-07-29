@@ -46,12 +46,12 @@ func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsC
 
 // ValidateNamespace validates that a single namespace conforms to network isolation standards
 func ValidateNamespace(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace) error {
-  err := validateAnnotationAndLabel(client, namespace)
+  updated, err := validateAnnotationAndLabel(client, namespace)
   if err != nil {
     return err
   }
 
-  err = validateNetworkPolicies(extClient, namespace)
+  err = validateNetworkPolicies(extClient, updated)
   if err != nil {
     return err
   }
@@ -83,7 +83,7 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
   return nil
 }
 
-func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace) error {
+func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace) (*api.Namespace, error) {
   var doUpdate bool
 
   annotations := namespace.GetAnnotations()
@@ -115,13 +115,14 @@ func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Names
   }
 
   if doUpdate {
-    _, err := client.Namespaces().Update(namespace)
+    updated, err := client.Namespaces().Update(namespace)
     if err != nil {
-      return err
+      return nil, err
     }
 
     log.Printf("%s was invalid. Updated to validate.", namespace.Name)
+    return updated, nil
   }
 
-  return nil
+  return namespace, nil
 }

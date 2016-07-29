@@ -13,13 +13,15 @@ spec:
         name: congress
     spec:
       containers:
-      - image: thirtyx/congress:0.1.1
+      - image: thirtyx/congress:0.1.2
         imagePullPolicy: Always
         name: congress
         env:
+        - name: CONGRESS_ISOLATE_NAMESPACE
+          value: false
         - name: CONGRESS_EXCLUDES
           value: "default,kube-system,apigee,apigee-jenkins,calico-system,guardians"
         - name: CONGRESS_SELECTOR
-          value: "runtime=shipyard"
+          value: "Runtime=shipyard"
         - name: CONGRESS_IGNORE_SELECTOR
-          value: "runtime=other"
+          value: "Runtime=other"

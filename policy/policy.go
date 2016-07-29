@@ -26,9 +26,9 @@ const (
   // IngressAnnotationKey key for the network policy annotation in a namespace
   IngressAnnotationKey = "net.beta.kubernetes.io/network-policy"
   // IngressAnnotationValue is the policy that belongs to the NetworkPolicy key
-  IngressAnnotationValue = "{\"ingress\": {\"isolation\": \"DefaultDeny\"}}"
+  IngressAnnotationValue = `{"ingress": {"isolation": "DefaultDeny"}}"`
   // NameLabelKey key for the name label used in network policy verification
-  NameLabelKey = "name"
+  NameLabelKey = "Name"
   // IntraPolicyName name of the intra-namespace network policy
   IntraPolicyName = "allow-intra-namespace"
   // BridgePolicyName name of network policy that allows apigee pod traffic to the namespace
@@ -39,6 +39,7 @@ const (
 
 // IsolateNamespace adds the necessary label for network isolation
 func IsolateNamespace(client *unversioned.Client, namespace *api.Namespace) error {
+  addIngressAnnotation(namespace)
   addNameLabel(namespace)
 
   _ , err := client.Namespaces().Update(namespace)
@@ -47,6 +48,21 @@ func IsolateNamespace(client *unversioned.Client, namespace *api.Namespace) erro
   }
 
   return nil
+}
+
+func addIngressAnnotation(namespace *api.Namespace) {
+  annotations := namespace.GetAnnotations()
+  if annotations == nil { // no annotations
+    annotations = map[string]string{}
+  } else if _, exists := annotations[IngressAnnotationKey]; exists {
+    return // annotation already exists
+  }
+
+  // annotation does not exist, add it
+  annotations[IngressAnnotationKey] = IngressAnnotationValue
+  namespace.SetAnnotations(annotations)
+
+  return
 }
 
 func addNameLabel(namespace *api.Namespace) {
