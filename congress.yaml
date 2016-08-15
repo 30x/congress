@@ -18,10 +18,8 @@ spec:
         name: congress
         env:
         - name: CONGRESS_ISOLATE_NAMESPACE
-          value: false
+          value: "true"
         - name: CONGRESS_EXCLUDES
-          value: "default,kube-system,apigee,apigee-jenkins,calico-system,guardians"
-        - name: CONGRESS_SELECTOR
-          value: "Runtime=shipyard"
+          value: "kube-system,apigee,calico-system"
         - name: CONGRESS_IGNORE_SELECTOR
-          value: "Runtime=other"
+          value: "congress=exclude"

@@ -26,7 +26,7 @@ import (
 // ValidateList validates that a list of namespaces conform to network isolation standards
 func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsClient, list *api.NamespaceList, config *utils.Config) (*api.NamespaceList, error) {
   for _, ns := range list.Items {
-    if !config.IsExcluded(ns.Name) {
+    if !config.IsExcluded(ns.Name) && !config.InIgnoreSelector(ns.GetLabels()) {
       err := ValidateNamespace(client, extClient, &ns)
       if err != nil {
         return nil, err
@@ -119,6 +119,9 @@ func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Names
     if err != nil {
       return nil, err
     }
+
+    // reset flag, just in case
+    doUpdate = false
 
     log.Printf("%s was invalid. Updated to validate.", namespace.Name)
     return updated, nil
