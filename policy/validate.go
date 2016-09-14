@@ -46,7 +46,7 @@ func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsC
 
 // ValidateNamespace validates that a single namespace conforms to network isolation standards
 func ValidateNamespace(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
-  updated, err := validateAnnotationAndLabel(client, namespace)
+  updated, err := validateAnnotationAndLabel(client, namespace, config)
   if err != nil {
     return err
   }
@@ -65,7 +65,7 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
   _, err := policies.Get(IntraPolicyName)
   if err != nil { // didn't have the allow-intra-namespace policy
     log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, IntraPolicyName)
-    err = AddIntraPolicy(extClient, namespace)
+    err = AddIntraPolicy(extClient, namespace, config)
     if err != nil {
       return err
     }
@@ -74,7 +74,7 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
   _, err = policies.Get(BridgePolicyName)
   if err != nil { // didn't have the allow-apigee policy
     log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, BridgePolicyName)
-    err = AddBridgePolicy(extClient, namespace, config.RoutingNamespace)
+    err = AddBridgePolicy(extClient, namespace, config)
     if err != nil {
       return err
     }
@@ -83,7 +83,7 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
   return nil
 }
 
-func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace) (*api.Namespace, error) {
+func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace, config *utils.Config) (*api.Namespace, error) {
   var doUpdate bool
 
   annotations := namespace.GetAnnotations()
@@ -105,11 +105,11 @@ func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Names
     labels = map[string]string{}
   }
 
-  if val, exists := labels[NameLabelKey]; !exists ||
+  if val, exists := labels[config.RoutingLabelName]; !exists ||
     (exists && val != namespace.Name) {
 
     // add `name` label with this namespace's name
-    labels[NameLabelKey] = namespace.Name
+    labels[config.RoutingLabelName] = namespace.Name
     namespace.SetLabels(labels)
     doUpdate = true
   }

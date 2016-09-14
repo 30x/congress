@@ -29,8 +29,6 @@ const (
   IngressAnnotationKey = "net.beta.kubernetes.io/network-policy"
   // IngressAnnotationValue is the policy that belongs to the NetworkPolicy key
   IngressAnnotationValue = `{"ingress": {"isolation": "DefaultDeny"}}"`
-  // NameLabelKey key for the name label used in network policy verification
-  NameLabelKey = "Name"
   // IntraPolicyName name of the intra-namespace network policy
   IntraPolicyName = "allow-intra-namespace"
   // BridgePolicyName name of network policy that allows apigee pod traffic to the namespace
@@ -38,9 +36,9 @@ const (
 )
 
 // IsolateNamespace adds the necessary label for network isolation
-func IsolateNamespace(client *unversioned.Client, namespace *api.Namespace) error {
+func IsolateNamespace(client *unversioned.Client, namespace *api.Namespace, config *utils.Config) error {
   addIngressAnnotation(namespace)
-  addNameLabel(namespace)
+  addRoutingLabel(namespace, config.RoutingLabelName)
 
   _ , err := client.Namespaces().Update(namespace)
   if err != nil {
@@ -65,16 +63,16 @@ func addIngressAnnotation(namespace *api.Namespace) {
   return
 }
 
-func addNameLabel(namespace *api.Namespace) {
+func addRoutingLabel(namespace *api.Namespace, routingLabelName string) {
   labels := namespace.GetLabels()
   if labels == nil { // no labels
     labels = map[string]string{}
-  } else if _, exists := labels[NameLabelKey]; exists {
+  } else if _, exists := labels[routingLabelName]; exists {
     return // label already exists
   }
 
   // add `name` label with this namespace's name
-  labels[NameLabelKey] = namespace.Name
+  labels[routingLabelName] = namespace.Name
   namespace.SetLabels(labels)
 }
 
@@ -84,7 +82,7 @@ func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespac
 
   _, err := policies.Get(IntraPolicyName)
   if err != nil { // policy did not exist in namespace, make it
-    err = AddIntraPolicy(client, namespace)
+    err = AddIntraPolicy(client, namespace, config)
     if err != nil {
       return err
     }
@@ -94,7 +92,7 @@ func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespac
 
   _, err = policies.Get(BridgePolicyName)
   if err != nil { // policy did not exist in namespace, make it
-    err = AddBridgePolicy(client, namespace, config.RoutingNamespace)
+    err = AddBridgePolicy(client, namespace, config)
     if err != nil {
       return err
     }
@@ -106,9 +104,9 @@ func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespac
 }
 
 // AddBridgePolicy adds the allow-apigee NetworkPolicy to the given namespace
-func AddBridgePolicy(client *unversioned.ExtensionsClient, namespace *api.Namespace, routingNamespace string) error {
+func AddBridgePolicy(client *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   // get the apigee bridge network policy
-  bridge := writeBridgePolicy(routingNamespace)
+  bridge := writeBridgePolicy(config)
 
   // add the allow-apigee NetworkPolicy to the namespace
   _, err :=  client.NetworkPolicies(namespace.Name).Create(bridge)
@@ -120,9 +118,9 @@ func AddBridgePolicy(client *unversioned.ExtensionsClient, namespace *api.Namesp
 }
 
 // AddIntraPolicy adds the intra-namespace network policy to a given namespace
-func AddIntraPolicy(client *unversioned.ExtensionsClient, namespace *api.Namespace) error {
+func AddIntraPolicy(client *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   // make intra-namespace policy for this namespace
-  intra := writeIntraPolicy(namespace)
+  intra := writeIntraPolicy(namespace, config.RoutingLabelName)
 
   // add allow-intra-namespace NetworkPolicy to the namespace
   _, err := client.NetworkPolicies(namespace.Name).Create(intra)
@@ -133,7 +131,7 @@ func AddIntraPolicy(client *unversioned.ExtensionsClient, namespace *api.Namespa
   return nil
 }
 
-func writeIntraPolicy(namespace *api.Namespace) *extensions.NetworkPolicy {
+func writeIntraPolicy(namespace *api.Namespace, routingLabelName string) *extensions.NetworkPolicy {
   return &extensions.NetworkPolicy{
     ObjectMeta: api.ObjectMeta{
       Name: IntraPolicyName, // name of the network policy
@@ -147,7 +145,7 @@ func writeIntraPolicy(namespace *api.Namespace) *extensions.NetworkPolicy {
               // allow pod traffic from this namespace
               NamespaceSelector: &unversionedApi.LabelSelector{
                 MatchLabels: map[string]string{
-                  NameLabelKey: namespace.Name,
+                  routingLabelName: namespace.Name,
                 },
               },
             },
@@ -158,7 +156,7 @@ func writeIntraPolicy(namespace *api.Namespace) *extensions.NetworkPolicy {
   }
 }
 
-func writeBridgePolicy(routingNamespace string) *extensions.NetworkPolicy {
+func writeBridgePolicy(config *utils.Config) *extensions.NetworkPolicy {
   return &extensions.NetworkPolicy{
     ObjectMeta: api.ObjectMeta{
       Name: BridgePolicyName, // name of the network policy
@@ -172,7 +170,7 @@ func writeBridgePolicy(routingNamespace string) *extensions.NetworkPolicy {
               // allow pod traffic from the routing namespace
               NamespaceSelector: &unversionedApi.LabelSelector{
                 MatchLabels: map[string]string{
-                  NameLabelKey: routingNamespace,
+                  config.RoutingLabelName: config.RoutingNamespace,
                 },
               },
             },
