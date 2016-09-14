@@ -71,9 +71,9 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
     }
   }
 
-  _, err = policies.Get(BridgePolicyName)
+  _, err = policies.Get(config.RoutingPolicyName)
   if err != nil { // didn't have the allow-apigee policy
-    log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, BridgePolicyName)
+    log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, config.RoutingPolicyName)
     err = AddBridgePolicy(extClient, namespace, config)
     if err != nil {
       return err

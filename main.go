@@ -68,7 +68,7 @@ func main() {
 
         // add label for ingress policy ID
         if config.IsolateNamespace {
-          err := policy.IsolateNamespace(kubeClient, namespace)
+          err := policy.IsolateNamespace(kubeClient, namespace, config)
           if err != nil {
             log.Printf("Failed writing namespace ingress isolation: %v", err)
           }

@@ -41,6 +41,7 @@ type Config struct {
   IsolateNamespace bool
   RoutingNamespace string
   RoutingLabelName string
+  RoutingPolicyName string
 }
 
 // ConfigFromEnv returns the configuration based on the environment variables
@@ -60,6 +61,13 @@ func ConfigFromEnv() (*Config, error) {
   }
 
   config.RoutingLabelName = routingLabel
+
+  routingPolicyName := os.Getenv("CONGRESS_ROUTING_POLICY_NAME")
+  if routingPolicyName == "" {
+    return nil, fmt.Errorf("Missin environment variable CONGRESS_ROUTING_POLICY_NAME for routing bridge")
+  }
+
+  config.RoutingPolicyName = routingPolicyName
 
   label := os.Getenv("CONGRESS_SELECTOR")
   if label == "" {

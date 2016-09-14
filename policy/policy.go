@@ -31,8 +31,6 @@ const (
   IngressAnnotationValue = `{"ingress": {"isolation": "DefaultDeny"}}"`
   // IntraPolicyName name of the intra-namespace network policy
   IntraPolicyName = "allow-intra-namespace"
-  // BridgePolicyName name of network policy that allows apigee pod traffic to the namespace
-  BridgePolicyName = "allow-apigee"
 )
 
 // IsolateNamespace adds the necessary label for network isolation
@@ -90,14 +88,14 @@ func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespac
     log.Printf("%s already exists in %s. Skipping creation.", IntraPolicyName, namespace.Name)
   }
 
-  _, err = policies.Get(BridgePolicyName)
+  _, err = policies.Get(config.RoutingPolicyName)
   if err != nil { // policy did not exist in namespace, make it
     err = AddBridgePolicy(client, namespace, config)
     if err != nil {
       return err
     }
   } else {
-    log.Printf("%s already exists in %s. Skipping creation.", BridgePolicyName, namespace.Name)
+    log.Printf("%s already exists in %s. Skipping creation.", config.RoutingPolicyName, namespace.Name)
   }
 
   return nil
@@ -159,7 +157,7 @@ func writeIntraPolicy(namespace *api.Namespace, routingLabelName string) *extens
 func writeBridgePolicy(config *utils.Config) *extensions.NetworkPolicy {
   return &extensions.NetworkPolicy{
     ObjectMeta: api.ObjectMeta{
-      Name: BridgePolicyName, // name of the network policy
+      Name: config.RoutingPolicyName, // name of the network policy
     },
     Spec: extensions.NetworkPolicySpec{
       PodSelector: unversionedApi.LabelSelector{}, // empty PodSelector selects all pods
