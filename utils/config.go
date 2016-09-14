@@ -39,11 +39,19 @@ type Config struct {
   LabelSelector labels.Selector
   IgnoreSelector labels.Selector
   IsolateNamespace bool
+  RoutingNamespace string
 }
 
 // ConfigFromEnv returns the configuration based on the environment variables
 func ConfigFromEnv() (*Config, error) {
   config := &Config{}
+
+  routing := os.Getenv("CONGRESS_ROUTING_NAMESPACE")
+  if routing == "" {
+    return nil, fmt.Errorf("Missing environment variable CONGRESS_ROUTING_NAMESPACE for routing bridge.")
+  }
+
+  config.RoutingNamespace = routing
 
   label := os.Getenv("CONGRESS_SELECTOR")
   if label == "" {

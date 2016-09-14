@@ -27,7 +27,7 @@ import (
 func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsClient, list *api.NamespaceList, config *utils.Config) (*api.NamespaceList, error) {
   for _, ns := range list.Items {
     if !config.IsExcluded(ns.Name) && !config.InIgnoreSelector(ns.GetLabels()) {
-      err := ValidateNamespace(client, extClient, &ns)
+      err := ValidateNamespace(client, extClient, &ns, config)
       if err != nil {
         return nil, err
       }
@@ -45,13 +45,13 @@ func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsC
 }
 
 // ValidateNamespace validates that a single namespace conforms to network isolation standards
-func ValidateNamespace(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace) error {
+func ValidateNamespace(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   updated, err := validateAnnotationAndLabel(client, namespace)
   if err != nil {
     return err
   }
 
-  err = validateNetworkPolicies(extClient, updated)
+  err = validateNetworkPolicies(extClient, updated, config)
   if err != nil {
     return err
   }
@@ -59,7 +59,7 @@ func ValidateNamespace(client *unversioned.Client, extClient *unversioned.Extens
   return nil
 }
 
-func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace *api.Namespace) error {
+func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   policies := extClient.NetworkPolicies(namespace.Name)
 
   _, err := policies.Get(IntraPolicyName)
@@ -74,7 +74,7 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
   _, err = policies.Get(BridgePolicyName)
   if err != nil { // didn't have the allow-apigee policy
     log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, BridgePolicyName)
-    err = AddBridgePolicy(extClient, namespace)
+    err = AddBridgePolicy(extClient, namespace, config.RoutingNamespace)
     if err != nil {
       return err
     }

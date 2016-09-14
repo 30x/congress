@@ -20,6 +20,8 @@ import (
   unversionedApi "k8s.io/kubernetes/pkg/api/unversioned"
   "k8s.io/kubernetes/pkg/client/unversioned"
   "k8s.io/kubernetes/pkg/apis/extensions"
+
+  "github.com/30x/congress/utils"
 )
 
 const (
@@ -33,8 +35,6 @@ const (
   IntraPolicyName = "allow-intra-namespace"
   // BridgePolicyName name of network policy that allows apigee pod traffic to the namespace
   BridgePolicyName = "allow-apigee"
-  // ApigeeNamespaceName name of the apigee namespace
-  ApigeeNamespaceName = "apigee"
 )
 
 // IsolateNamespace adds the necessary label for network isolation
@@ -79,7 +79,7 @@ func addNameLabel(namespace *api.Namespace) {
 }
 
 // EnactPolicies creates the necessary network policies in the given namespace
-func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespace) error {
+func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   policies := client.NetworkPolicies(namespace.Name)
 
   _, err := policies.Get(IntraPolicyName)
@@ -94,7 +94,7 @@ func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespac
 
   _, err = policies.Get(BridgePolicyName)
   if err != nil { // policy did not exist in namespace, make it
-    err = AddBridgePolicy(client, namespace)
+    err = AddBridgePolicy(client, namespace, config.RoutingNamespace)
     if err != nil {
       return err
     }
@@ -106,9 +106,9 @@ func EnactPolicies(client *unversioned.ExtensionsClient, namespace *api.Namespac
 }
 
 // AddBridgePolicy adds the allow-apigee NetworkPolicy to the given namespace
-func AddBridgePolicy(client *unversioned.ExtensionsClient, namespace *api.Namespace) error {
+func AddBridgePolicy(client *unversioned.ExtensionsClient, namespace *api.Namespace, routingNamespace string) error {
   // get the apigee bridge network policy
-  bridge := writeBridgePolicy()
+  bridge := writeBridgePolicy(routingNamespace)
 
   // add the allow-apigee NetworkPolicy to the namespace
   _, err :=  client.NetworkPolicies(namespace.Name).Create(bridge)
@@ -158,7 +158,7 @@ func writeIntraPolicy(namespace *api.Namespace) *extensions.NetworkPolicy {
   }
 }
 
-func writeBridgePolicy() *extensions.NetworkPolicy {
+func writeBridgePolicy(routingNamespace string) *extensions.NetworkPolicy {
   return &extensions.NetworkPolicy{
     ObjectMeta: api.ObjectMeta{
       Name: BridgePolicyName, // name of the network policy
@@ -169,10 +169,10 @@ func writeBridgePolicy() *extensions.NetworkPolicy {
         extensions.NetworkPolicyIngressRule{ // omit Ports allows on all ports
           From: []extensions.NetworkPolicyPeer{
             extensions.NetworkPolicyPeer{
-              // allow pod traffic from this namespace
+              // allow pod traffic from the routing namespace
               NamespaceSelector: &unversionedApi.LabelSelector{
                 MatchLabels: map[string]string{
-                  NameLabelKey: ApigeeNamespaceName,
+                  NameLabelKey: routingNamespace,
                 },
               },
             },
