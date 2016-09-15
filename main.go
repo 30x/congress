@@ -68,13 +68,13 @@ func main() {
 
         // add label for ingress policy ID
         if config.IsolateNamespace {
-          err := policy.IsolateNamespace(kubeClient, namespace)
+          err := policy.IsolateNamespace(kubeClient, namespace, config)
           if err != nil {
             log.Printf("Failed writing namespace ingress isolation: %v", err)
           }
         }
 
-        err = policy.EnactPolicies(extClient, namespace)
+        err = policy.EnactPolicies(extClient, namespace, config)
         if err != nil {
           log.Printf("Failed enacting network policies: %v", err)
         }
@@ -85,7 +85,7 @@ func main() {
       if namespace.Status.Phase == api.NamespaceActive && !config.IsExcluded(namespace.Name) &&
         !config.InIgnoreSelector(namespace.GetLabels()) {
         log.Printf("Modification on namespace: %s. Validating", namespace.Name)
-        err = policy.ValidateNamespace(kubeClient, extClient, namespace)
+        err = policy.ValidateNamespace(kubeClient, extClient, namespace, config)
         if err != nil {
           log.Printf("Failed validating modified namespace %s: %v", namespace.Name, err)
         }

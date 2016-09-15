@@ -27,7 +27,7 @@ import (
 func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsClient, list *api.NamespaceList, config *utils.Config) (*api.NamespaceList, error) {
   for _, ns := range list.Items {
     if !config.IsExcluded(ns.Name) && !config.InIgnoreSelector(ns.GetLabels()) {
-      err := ValidateNamespace(client, extClient, &ns)
+      err := ValidateNamespace(client, extClient, &ns, config)
       if err != nil {
         return nil, err
       }
@@ -45,13 +45,13 @@ func ValidateList(client *unversioned.Client, extClient *unversioned.ExtensionsC
 }
 
 // ValidateNamespace validates that a single namespace conforms to network isolation standards
-func ValidateNamespace(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace) error {
-  updated, err := validateAnnotationAndLabel(client, namespace)
+func ValidateNamespace(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
+  updated, err := validateAnnotationAndLabel(client, namespace, config)
   if err != nil {
     return err
   }
 
-  err = validateNetworkPolicies(extClient, updated)
+  err = validateNetworkPolicies(extClient, updated, config)
   if err != nil {
     return err
   }
@@ -59,22 +59,22 @@ func ValidateNamespace(client *unversioned.Client, extClient *unversioned.Extens
   return nil
 }
 
-func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace *api.Namespace) error {
+func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   policies := extClient.NetworkPolicies(namespace.Name)
 
   _, err := policies.Get(IntraPolicyName)
   if err != nil { // didn't have the allow-intra-namespace policy
     log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, IntraPolicyName)
-    err = AddIntraPolicy(extClient, namespace)
+    err = AddIntraPolicy(extClient, namespace, config)
     if err != nil {
       return err
     }
   }
 
-  _, err = policies.Get(BridgePolicyName)
+  _, err = policies.Get(config.RoutingPolicyName)
   if err != nil { // didn't have the allow-apigee policy
-    log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, BridgePolicyName)
-    err = AddBridgePolicy(extClient, namespace)
+    log.Printf("%s missing %s policy. Adding it to validate.", namespace.Name, config.RoutingPolicyName)
+    err = AddBridgePolicy(extClient, namespace, config)
     if err != nil {
       return err
     }
@@ -83,7 +83,7 @@ func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace 
   return nil
 }
 
-func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace) (*api.Namespace, error) {
+func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace, config *utils.Config) (*api.Namespace, error) {
   var doUpdate bool
 
   annotations := namespace.GetAnnotations()
@@ -105,11 +105,11 @@ func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Names
     labels = map[string]string{}
   }
 
-  if val, exists := labels[NameLabelKey]; !exists ||
+  if val, exists := labels[config.RoutingLabelName]; !exists ||
     (exists && val != namespace.Name) {
 
     // add `name` label with this namespace's name
-    labels[NameLabelKey] = namespace.Name
+    labels[config.RoutingLabelName] = namespace.Name
     namespace.SetLabels(labels)
     doUpdate = true
   }

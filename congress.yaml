@@ -13,7 +13,7 @@ spec:
         name: congress
     spec:
       containers:
-      - image: thirtyx/congress:0.1.2
+      - image: thirtyx/congress:0.1.3
         imagePullPolicy: Always
         name: congress
         env:
@@ -23,3 +23,9 @@ spec:
           value: "kube-system,apigee,calico-system"
         - name: CONGRESS_IGNORE_SELECTOR
           value: "congress=exclude"
+        - name: CONGRESS_ROUTING_NAMESPACE
+          value: "apigee"
+        - name: CONGRESS_ROUTING_LABEL
+          value: "Name"
+        - name: CONGRESS_ROUTING_POLICY_NAME
+          value: "allow-routing"
