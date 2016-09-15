@@ -28,7 +28,7 @@ const (
   // IngressAnnotationKey key for the network policy annotation in a namespace
   IngressAnnotationKey = "net.beta.kubernetes.io/network-policy"
   // IngressAnnotationValue is the policy that belongs to the NetworkPolicy key
-  IngressAnnotationValue = `{"ingress": {"isolation": "DefaultDeny"}}"`
+  IngressAnnotationValue = `{"ingress": {"isolation": "DefaultDeny"}}`
   // IntraPolicyName name of the intra-namespace network policy
   IntraPolicyName = "allow-intra-namespace"
 )
