@@ -89,6 +89,13 @@ func main() {
         if err != nil {
           log.Printf("Failed validating modified namespace %s: %v", namespace.Name, err)
         }
+      } else if config.InIgnoreSelector(namespace.GetLabels()) && namespace.Status.Phase == api.NamespaceActive {
+        // this namespace might be newly excluded, ensure it is exposed
+        log.Printf("Modification on excluded namespace: %s. Ensuring it isn't isolated.", namespace.Name)
+        err = policy.ValidateIsolation(kubeClient, extClient, namespace, config)
+        if err != nil {
+          log.Printf("Failed validating isolation of excluded namespace: %s err: %v", namespace.Name, err)
+        }
       }
     }
 

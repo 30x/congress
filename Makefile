@@ -1,4 +1,4 @@
-IMAGE_VERSION=0.1.3
+IMAGE_VERSION=0.1.4
 
 build-and-package: compile-linux build-image
 build-deploy-dev: compile-linux build-image push-to-dev deploy-dev-image
@@ -18,4 +18,7 @@ push-new-version:
 	docker push thirtyx/congress:$(IMAGE_VERSION)
 
 deploy-dev-image:
-	kubectl create -f congress-dev.yaml  --namespace=apigee
+	kubectl replace -f congress-dev.yaml  --namespace=apigee
+
+clean:
+	rm congress

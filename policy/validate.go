@@ -59,6 +59,16 @@ func ValidateNamespace(client *unversioned.Client, extClient *unversioned.Extens
   return nil
 }
 
+// ValidateIsolation ensures that a namespace excluded by the IgnoreSelector labels is not isolated by congress
+func ValidateIsolation(client *unversioned.Client, extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
+  updated, err := repealIsolationAnnotationAndLabel(client, namespace, config)
+  if err != nil {
+    return err
+  }
+
+  return repealNetworkPolicies(extClient, updated, config)
+}
+
 func validateNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
   policies := extClient.NetworkPolicies(namespace.Name)
 
@@ -128,4 +138,76 @@ func validateAnnotationAndLabel(client *unversioned.Client, namespace *api.Names
   }
 
   return namespace, nil
+}
+
+func repealIsolationAnnotationAndLabel(client *unversioned.Client, namespace *api.Namespace, config *utils.Config) (*api.Namespace, error) {
+  var doUpdate bool
+
+  annotations := namespace.GetAnnotations()
+  if annotations == nil { // no annotations, don't need to do anything
+    return namespace, nil
+  }
+
+  if annotations != nil {
+    if val, exists := annotations[IngressAnnotationKey]; exists && val == IngressAnnotationValue {
+
+      // annotation does exist, remove it
+      delete(annotations, IngressAnnotationKey)
+
+      namespace.SetAnnotations(annotations)
+      doUpdate = true
+    }
+  }
+
+  labels := namespace.GetLabels()
+
+  if labels != nil {
+    if val, exists := labels[config.RoutingLabelName]; exists && val == namespace.Name {
+
+      // repeal routing label from namespace
+      delete(labels, config.RoutingLabelName)
+
+      namespace.SetLabels(labels)
+      doUpdate = true
+    }
+  }
+
+  if doUpdate {
+    updated, err := client.Namespaces().Update(namespace)
+    if err != nil {
+      return nil, err
+    }
+
+    // reset flag, just in case
+    doUpdate = false
+
+    log.Printf("%s was isolated while excluded. Removing isolation properties.", namespace.Name)
+    return updated, nil
+  }
+
+  return namespace, nil
+}
+
+func repealNetworkPolicies(extClient *unversioned.ExtensionsClient, namespace *api.Namespace, config *utils.Config) error {
+  policies := extClient.NetworkPolicies(namespace.Name)
+
+  _, err := policies.Get(IntraPolicyName)
+  if err == nil { // has the allow-intra-namespace policy, repeal it
+    log.Printf("%s has %s policy. Repealing it.", namespace.Name, IntraPolicyName)
+    err = policies.Delete(IntraPolicyName, nil)
+    if err != nil {
+      return err
+    }
+  }
+
+  _, err = policies.Get(config.RoutingPolicyName)
+  if err == nil { // has the allow-apigee policy, repeal it
+    log.Printf("%s has %s policy. Repealing it.", namespace.Name, config.RoutingPolicyName)
+    err = policies.Delete(config.RoutingPolicyName, nil)
+    if err != nil {
+      return err
+    }
+  }
+
+  return nil
 }
