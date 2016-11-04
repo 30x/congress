@@ -22,3 +22,12 @@ deploy-dev-image:
 
 clean:
 	rm congress
+
+run-local-binary:
+	env CONGRESS_ISOLATE_NAMESPACE=true \
+	CONGRESS_EXCLUDES=kube-system \
+	CONGRESS_ROUTING_NAMESPACE=apigee \
+	CONGRESS_ROUTING_LABEL=Name \
+	CONGRESS_ROUTING_POLICY_NAME=allow-routing \
+	CONGRESS_IGNORE_SELECTOR="congress=exclude" \
+	./congress

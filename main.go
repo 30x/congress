@@ -60,43 +60,10 @@ func main() {
       doRestart = true
     }
 
-    // new namespace created event, start isolating it
-    if event.Type == watch.Added && !doRestart {
-      namespace := event.Object.(*api.Namespace)
-      if !config.IsExcluded(namespace.Name) && !config.InIgnoreSelector(namespace.GetLabels()) {
-        log.Printf("New namespace added: %s\n", namespace.Name)
-
-        // add label for ingress policy ID
-        if config.IsolateNamespace {
-          err := policy.IsolateNamespace(kubeClient, namespace, config)
-          if err != nil {
-            log.Printf("Failed writing namespace ingress isolation: %v", err)
-          }
-        }
-
-        err = policy.EnactPolicies(extClient, namespace, config)
-        if err != nil {
-          log.Printf("Failed enacting network policies: %v", err)
-        }
-      }
-    } else if event.Type == watch.Modified && !doRestart {
-      // verify any namespace modifications didn't remove our policies
-      namespace := event.Object.(*api.Namespace)
-      if namespace.Status.Phase == api.NamespaceActive && !config.IsExcluded(namespace.Name) &&
-        !config.InIgnoreSelector(namespace.GetLabels()) {
-        log.Printf("Modification on namespace: %s. Validating", namespace.Name)
-        err = policy.ValidateNamespace(kubeClient, extClient, namespace, config)
-        if err != nil {
-          log.Printf("Failed validating modified namespace %s: %v", namespace.Name, err)
-        }
-      } else if config.InIgnoreSelector(namespace.GetLabels()) && namespace.Status.Phase == api.NamespaceActive {
-        // this namespace might be newly excluded, ensure it is exposed
-        log.Printf("Modification on excluded namespace: %s. Ensuring it isn't isolated.", namespace.Name)
-        err = policy.ValidateIsolation(kubeClient, extClient, namespace, config)
-        if err != nil {
-          log.Printf("Failed validating isolation of excluded namespace: %s err: %v", namespace.Name, err)
-        }
-      }
+    if !doRestart {
+      // new namespace created event, start isolating it
+      err := handleNamespaceEvent(event, kubeClient, extClient, config)
+      if err != nil { log.Fatal(err) }
     }
 
     if doRestart {
@@ -147,5 +114,40 @@ func initCongress(client *unversioned.Client, extClient *unversioned.ExtensionsC
   }
 
   return watcher
+}
+
+func handleNamespaceEvent(event watch.Event, kubeClient *unversioned.Client, extClient *unversioned.ExtensionsClient, config *utils.Config) (err error) {
+  if event.Type == watch.Added {
+    namespace := event.Object.(*api.Namespace)
+    if !config.IsExcluded(namespace.Name) && !config.InIgnoreSelector(namespace.GetLabels()) {
+      log.Printf("New namespace added: %s\n", namespace.Name)
+
+      // add label for ingress policy ID
+      if config.IsolateNamespace {
+        err := policy.IsolateNamespace(kubeClient, namespace, config)
+        if err != nil { return err }
+      }
+
+      err = policy.EnactPolicies(extClient, namespace, config)
+      if err != nil { return err }
+    }
+  } else if event.Type == watch.Modified {
+    // verify any namespace modifications didn't remove our policies
+    namespace := event.Object.(*api.Namespace)
+    if namespace.Status.Phase == api.NamespaceActive && !config.IsExcluded(namespace.Name) &&
+      !config.InIgnoreSelector(namespace.GetLabels()) {
+
+      log.Printf("Modification on namespace: %s. Validating", namespace.Name)
+      err = policy.ValidateNamespace(kubeClient, extClient, namespace, config)
+      if err != nil { return err }
+    } else if config.InIgnoreSelector(namespace.GetLabels()) && namespace.Status.Phase == api.NamespaceActive {
+      // this namespace might be newly excluded, ensure it is exposed
+      log.Printf("Modification on excluded namespace: %s. Ensuring it isn't isolated.", namespace.Name)
+      err = policy.ValidateIsolation(kubeClient, extClient, namespace, config)
+      if err != nil { return err }
+    }
+  }
+
+  return
 }
 
