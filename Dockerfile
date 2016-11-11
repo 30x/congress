@@ -1,5 +1,5 @@
 FROM alpine:3.4
 
-COPY congress /
+COPY ./build/congress /
 
 CMD ["/congress"]

@@ -129,6 +129,22 @@ func AddIntraPolicy(client *unversioned.ExtensionsClient, namespace *api.Namespa
   return nil
 }
 
+// ReenactPolicy rewrites a policy that was not supposed to be deleted
+func ReenactPolicy(policy *extensions.NetworkPolicy, namespace *api.Namespace, client *unversioned.ExtensionsClient, config *utils.Config) (err error) {
+  if policy.Name == IntraPolicyName {
+    return AddIntraPolicy(client, namespace, config)
+  } else if policy.Name == config.RoutingPolicyName {
+    return AddBridgePolicy(client, namespace, config)
+  }
+
+  return
+}
+
+// IsCongressPolicy checks if the given policy name is one that congress manages
+func IsCongressPolicy(name string, config *utils.Config) bool {
+  return (name == IntraPolicyName || name == config.RoutingPolicyName)
+}
+
 func writeIntraPolicy(namespace *api.Namespace, routingLabelName string) *extensions.NetworkPolicy {
   return &extensions.NetworkPolicy{
     ObjectMeta: api.ObjectMeta{

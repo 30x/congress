@@ -1,10 +1,16 @@
-IMAGE_VERSION=0.1.4
+IMAGE_VERSION=0.1.5
 
-build-and-package: compile-linux build-image
-build-deploy-dev: compile-linux build-image push-to-dev deploy-dev-image
+build-and-package: mk-build-dir compile-linux build-image clean
+build-deploy-dev: mk-build-dir compile-linux build-image push-to-dev deploy-dev-image clean
+
+mk-build-dir:
+	mkdir build
+
+compile-darwin:
+	CGO_ENABLED=0 GOOS=darwin go build -a -installsuffix cgo -ldflags '-w' -o build/congress
 
 compile-linux:
-	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w' -o congress
+	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w' -o build/congress
 
 build-image:
 	docker build -t thirtyx/congress .
@@ -21,7 +27,7 @@ deploy-dev-image:
 	kubectl replace -f congress-dev.yaml  --namespace=apigee
 
 clean:
-	rm congress
+	rm -r build/
 
 run-local-binary:
 	env CONGRESS_ISOLATE_NAMESPACE=true \
@@ -30,4 +36,4 @@ run-local-binary:
 	CONGRESS_ROUTING_LABEL=Name \
 	CONGRESS_ROUTING_POLICY_NAME=allow-routing \
 	CONGRESS_IGNORE_SELECTOR="congress=exclude" \
-	./congress
+	./build/congress

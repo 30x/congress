@@ -18,15 +18,12 @@ import (
   "log"
 
   "github.com/30x/congress/utils"
-  "github.com/30x/congress/policy"
-
-  "k8s.io/kubernetes/pkg/api"
-  "k8s.io/kubernetes/pkg/client/unversioned"
-  "k8s.io/kubernetes/pkg/watch"
+  "github.com/30x/congress/congress"
 )
 
 func main() {
-  var doRestart bool
+  var doNamespaceRestart bool
+  var doPolicyRestart bool
 
   // get k8s client
   kubeClient, err := utils.GetClient()
@@ -47,107 +44,51 @@ func main() {
   }
 
   // start a namespace watcher on the cluster
-  watcher := initCongress(kubeClient, extClient, config)
+  namespaceWatcher, policyWatcher := congress.InitCongress(kubeClient, extClient, config)
   log.Println("Congress is in session")
 
   // begin reading namespace events
-  eventCh := watcher.ResultChan()
+  namespaceCh := namespaceWatcher.ResultChan()
+  policyCh := policyWatcher.ResultChan()
   for {
-    // block until namespace event occurs
-    event, ok := <- eventCh
-    if !ok {
-      log.Println("Kuberenetes closed the namespace watcher")
-      doRestart = true
+    select {
+      case event, ok := <-namespaceCh:
+        if !ok {
+          log.Println("Kuberenetes closed the namespace watcher")
+          doNamespaceRestart = true
+        }
+
+        if !doNamespaceRestart {
+          // new namespace created event, start isolating it
+          err := congress.HandleNamespaceEvent(event, kubeClient, extClient, config)
+          if err != nil { log.Fatal(err) }
+        }
+      case event, ok := <-policyCh:
+        if !ok {
+          log.Println("Kubernetes closed the policy watcher")
+          doPolicyRestart = true
+        }
+
+        if !doPolicyRestart {
+          err := congress.HandlePolicyEvent(event, kubeClient, extClient, config)
+          if err != nil { log.Fatal(err) }
+        }
     }
 
-    if !doRestart {
-      // new namespace created event, start isolating it
-      err := handleNamespaceEvent(event, kubeClient, extClient, config)
-      if err != nil { log.Fatal(err) }
+    if doNamespaceRestart {
+      log.Println("Congress is restarting the namespace watcher")
+      doNamespaceRestart = false
+      namespaceWatcher.Stop()
+      namespaceWatcher = congress.StartNamespaceWatcher(kubeClient, extClient, config)
+      namespaceCh = namespaceWatcher.ResultChan()
     }
 
-    if doRestart {
-      log.Println("Congress is restarting the watcher")
-      doRestart = false
-      watcher.Stop()
-      watcher = initCongress(kubeClient, extClient, config)
-      eventCh = watcher.ResultChan()
+    if doPolicyRestart {
+      log.Println("Congress is restarting the policy watcher")
+      doPolicyRestart = false
+      policyWatcher.Stop()
+      policyWatcher = congress.StartPolicyWatcher(extClient, config)
+      policyCh = policyWatcher.ResultChan()
     }
   }
 }
-
-// initCongress starts a namespace watcher
-func initCongress(client *unversioned.Client, extClient *unversioned.ExtensionsClient, config *utils.Config) (watch.Interface) {
-  log.Println("Retrieving watcher")
-
-  namespaces := client.Namespaces()
-
-  existing, err := namespaces.List(api.ListOptions{
-    LabelSelector: config.LabelSelector,
-  })
-  if err != nil {
-    log.Printf("Could not get list of existing namespaces")
-  }
-
-  log.Println("Validating existing namespaces")
-  validated, err := policy.ValidateList(client, extClient, existing, config)
-  if err != nil {
-    log.Fatalf("Failed validating the existing Namespaces list: %v", err)
-  }
-
-  if config.LabelSelector.String() != "" {
-    log.Printf("Selecting namespaces on: %v", config.LabelSelector)
-  }
-
-  if config.IgnoreSelector.String() != "" {
-    log.Printf("Ignoring namespaces on: %v", config.IgnoreSelector)
-  }
-
-  nsWatchOpts := api.ListOptions{
-    LabelSelector: config.LabelSelector,
-    ResourceVersion: validated.ResourceVersion,
-  }
-
-  watcher, err := namespaces.Watch(nsWatchOpts)
-  if err != nil {
-    log.Fatalf("Failed making namespace watcher: %v", err)
-  }
-
-  return watcher
-}
-
-func handleNamespaceEvent(event watch.Event, kubeClient *unversioned.Client, extClient *unversioned.ExtensionsClient, config *utils.Config) (err error) {
-  if event.Type == watch.Added {
-    namespace := event.Object.(*api.Namespace)
-    if !config.IsExcluded(namespace.Name) && !config.InIgnoreSelector(namespace.GetLabels()) {
-      log.Printf("New namespace added: %s\n", namespace.Name)
-
-      // add label for ingress policy ID
-      if config.IsolateNamespace {
-        err := policy.IsolateNamespace(kubeClient, namespace, config)
-        if err != nil { return err }
-      }
-
-      err = policy.EnactPolicies(extClient, namespace, config)
-      if err != nil { return err }
-    }
-  } else if event.Type == watch.Modified {
-    // verify any namespace modifications didn't remove our policies
-    namespace := event.Object.(*api.Namespace)
-    if namespace.Status.Phase == api.NamespaceActive && !config.IsExcluded(namespace.Name) &&
-      !config.InIgnoreSelector(namespace.GetLabels()) {
-
-      log.Printf("Modification on namespace: %s. Validating", namespace.Name)
-      err = policy.ValidateNamespace(kubeClient, extClient, namespace, config)
-      if err != nil { return err }
-    } else if config.InIgnoreSelector(namespace.GetLabels()) && namespace.Status.Phase == api.NamespaceActive {
-      // this namespace might be newly excluded, ensure it is exposed
-      log.Printf("Modification on excluded namespace: %s. Ensuring it isn't isolated.", namespace.Name)
-      err = policy.ValidateIsolation(kubeClient, extClient, namespace, config)
-      if err != nil { return err }
-    }
-  }
-
-  return
-}
-
